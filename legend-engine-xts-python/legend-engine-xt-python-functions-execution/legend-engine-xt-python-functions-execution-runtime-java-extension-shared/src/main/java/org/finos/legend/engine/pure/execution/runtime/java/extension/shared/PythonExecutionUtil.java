@@ -20,6 +20,7 @@ import org.finos.legend.pure.m3.navigation.ProcessorSupport;
 import org.finos.legend.pure.m4.coreinstance.CoreInstance;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
 public class PythonExecutionUtil
@@ -33,15 +34,35 @@ public class PythonExecutionUtil
     {
         try
         {
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", "-c", script);
+            String imageName = "vijaylather1999/pylegend:0.9.0";
+
+            ProcessBuilder pullBuilder = new ProcessBuilder(
+                    "docker", "pull", imageName
+            );
+            pullBuilder.redirectErrorStream(true);   // Merge error/output for build logs
+
+            Process buildProcess = pullBuilder.start();
+
+            int exitCode = buildProcess.waitFor();
+            if (exitCode != 0)
+            {
+                throw new RuntimeException("Docker Build Failed! Exit Code: " + exitCode);
+            }
+
+            ProcessBuilder processBuilder = new ProcessBuilder("docker", "run", "--rm", "-i", imageName, "python3", "-");
             Process process = processBuilder.start();
 
+            try (java.io.OutputStream stdin = process.getOutputStream())
+            {
+                stdin.write(script.getBytes(StandardCharsets.UTF_8));
+                stdin.flush();
+            }
             InputStream inputStream = process.getInputStream();
             InputStream errorStream = process.getErrorStream();
             Scanner outputScanner = new Scanner(inputStream).useDelimiter("\\A");
             Scanner errorScanner = new Scanner(errorStream).useDelimiter("\\A");
 
-            int exitCode = process.waitFor();
+            exitCode = process.waitFor();
             String output = outputScanner.hasNext() ? outputScanner.next() : "";
             String error = errorScanner.hasNext() ? errorScanner.next() : "";
             outputScanner.close();
